@@ -1,139 +1,111 @@
 import streamlit as st
-import pandas as pd
 
-# ตั้งค่าหน้าเว็บ
-st.set_page_config(page_title="Stock Calculator", page_icon="📈")
+# ตั้งค่าหน้าเว็บให้ดูคลีนๆ
+st.set_page_config(page_title="Simple Calculator", layout="centered")
 
-st.title("📈 Stock Utility Tools")
+# CSS ปรับแต่งให้ตัวหนังสือใหญ่ อ่านง่าย เหมือนในรูป
+st.markdown("""
+<style>
+    .big-font { font-size: 24px !important; font-weight: bold; color: #4CAF50; }
+    .label-font { font-size: 18px !important; font-weight: bold; }
+    div[data-testid="stMetricValue"] { font-size: 30px !important; }
+</style>
+""", unsafe_allow_html=True)
 
-# สร้าง Tabs เพื่อแยกฟังก์ชันการทำงาน
-tab1, tab2 = st.tabs(["📊 คำนวณถัวเฉลี่ย (Avg Cost)", "🧮 คำนวณ % และราคา"])
+st.title("เครื่องคิดเลขหุ้น 📉")
+
+tab1, tab2 = st.tabs(["💵 คำนวณต้นทุน (DCA)", "➗ คำนวณเปอร์เซ็นต์"])
 
 # ==========================================
-# TAB 1: คำนวณต้นทุนเฉลี่ย (Stock Average)
+# ส่วนที่ 1 : คำนวณต้นทุนเฉลี่ย (ตามรูปแรก)
 # ==========================================
 with tab1:
-    st.header("วางแผนซื้อถัวเฉลี่ย / เพิ่มทุน")
-
-    # ส่วนที่ 1: ข้อมูลหุ้นที่มีอยู่เดิม (Portfolio ปัจจุบัน)
-    st.subheader("1. พอร์ตปัจจุบัน")
-    col1, col2 = st.columns(2)
-    with col1:
-        current_shares = st.number_input("จำนวนหุ้นที่มี (Shares)", min_value=0.0, value=2.18, step=0.01, format="%.4f")
-    with col2:
-        current_price = st.number_input("ราคาต้นทุนเดิม (Avg Price)", min_value=0.0, value=670.0, step=0.1)
-
-    # คำนวณต้นทุนเดิม
-    current_total_cost = current_shares * current_price
-    st.info(f"💰 มูลค่ารวมปัจจุบัน: **{current_total_cost:,.2f} USD**")
+    st.markdown("### 1. ของเดิมที่มี")
+    c1, c2 = st.columns(2)
+    with c1:
+        old_shares = st.number_input("หุ้นที่มีอยู่ (Share)", min_value=0.0, step=1.0, format="%.4f")
+    with c2:
+        old_price = st.number_input("ต้นทุนต่อหุ้นเดิม (Price)", min_value=0.0, step=0.1, format="%.2f")
 
     st.divider()
-
-    # ส่วนที่ 2: ข้อมูลการซื้อเพิ่ม (New Buy)
-    st.subheader("2. แผนการซื้อเพิ่ม")
     
-    # ให้เลือกว่าจะกรอกเป็น "จำนวนหุ้น" หรือ "จำนวนเงิน"
-    buy_mode = st.radio("ระบุการซื้อโดย:", ["ระบุจำนวนหุ้น (Shares)", "ระบุจำนวนเงิน (Amount)"], horizontal=True)
+    st.markdown("### 2. ถ้าซื้อเพิ่ม")
     
-    col_buy1, col_buy2 = st.columns(2)
-    with col_buy1:
-        new_buy_price = st.number_input("ราคาที่จะซื้อใหม่ (New Price)", min_value=0.0, value=680.0, step=0.1)
+    # เลือกโหมดก่อน ว่าจะซื้อด้วย "จำนวนเงิน" หรือ "จำนวนหุ้น"
+    buy_mode = st.radio("ระบุการซื้อโดย:", ["ระบุจำนวนเงิน (USD)", "ระบุจำนวนหุ้น (Share)"], horizontal=True)
     
-    with col_buy2:
-        if buy_mode == "ระบุจำนวนหุ้น (Shares)":
-            add_shares = st.number_input("จำนวนหุ้นที่จะซื้อเพิ่ม", min_value=0.0, value=1.0, step=0.01)
-            add_amount = add_shares * new_buy_price
+    b1, b2 = st.columns(2)
+    with b1:
+        new_price = st.number_input("ราคาที่จะซื้อใหม่ (New Price)", min_value=0.0, value=old_price, step=0.1)
+    
+    with b2:
+        if "จำนวนเงิน" in buy_mode:
+            amount_input = st.number_input("ใส่จำนวนเงิน (USD)", min_value=0.0, step=100.0)
+            # คำนวณกลับเป็นหุ้น
+            new_shares = amount_input / new_price if new_price > 0 else 0
         else:
-            add_amount = st.number_input("จำนวนเงินที่จะซื้อเพิ่ม (USD)", min_value=0.0, value=60.0, step=10.0)
-            # คำนวณกลับเป็นจำนวนหุ้น (ถ้าซื้อด้วยเงินก้อนนี้จะได้กี่หุ้น)
-            if new_buy_price > 0:
-                add_shares = add_amount / new_buy_price
-            else:
-                add_shares = 0
+            new_shares = st.number_input("ใส่จำนวนหุ้น (Share)", min_value=0.0, step=1.0)
+            amount_input = new_shares * new_price
 
-    if buy_mode == "ระบุจำนวนเงิน (Amount)":
-        st.caption(f"💡 ด้วยเงิน {add_amount} USD ที่ราคา {new_buy_price} จะได้หุ้นประมาณ **{add_shares:,.4f} หุ้น**")
-
-    # ส่วนที่ 3: สรุปผล (Calculation)
+    # --- ส่วนแสดงผลลัพธ์ (Show Result) ---
     st.divider()
-    st.subheader("🏁 สรุปผลลัพธ์หลังซื้อเพิ่ม")
+    st.markdown("<p class='label-font'>✨ ต้นทุนจะกลายเป็น</p>", unsafe_allow_html=True)
+    
+    total_shares = old_shares + new_shares
+    total_cost = (old_shares * old_price) + amount_input
+    avg_price = total_cost / total_shares if total_shares > 0 else 0
 
-    if current_shares + add_shares > 0:
-        total_new_shares = current_shares + add_shares
-        total_new_cost = current_total_cost + add_amount
-        new_average_price = total_new_cost / total_new_shares
-        
-        # แสดงผลแบบ Metrics เปรียบเทียบ
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric(label="จำนวนหุ้นรวม (Shares)", value=f"{total_new_shares:,.4f}", delta=f"{add_shares:,.4f}")
-        with m2:
-            st.metric(label="ต้นทุนรวม (Total Cost)", value=f"{total_new_cost:,.2f}", delta=f"{add_amount:,.2f}")
-        with m3:
-            # ใช้ delta_color="inverse" เพราะถ้าต้นทุนเฉลี่ยเพิ่มขึ้นจะเป็นสีแดง (แย่ลง) ถ้าลดลงเป็นสีเขียว (ดีขึ้น)
-            diff = new_average_price - current_price
-            st.metric(label="ราคาเฉลี่ยใหม่ (New Avg)", value=f"{new_average_price:,.2f}", delta=f"{diff:,.2f}", delta_color="inverse")
-
-        # ตารางสรุปชัดๆ
-        result_data = {
-            "รายการ": ["ก่อนซื้อ", "ซื้อเพิ่ม", "หลังซื้อ"],
-            "จำนวนหุ้น": [current_shares, add_shares, total_new_shares],
-            "ราคา/หุ้น": [current_price, new_buy_price, new_average_price],
-            "มูลค่ารวม": [current_total_cost, add_amount, total_new_cost]
-        }
-        st.table(pd.DataFrame(result_data))
-    else:
-        st.warning("กรุณากรอกจำนวนหุ้นหรือราคา")
+    r1, r2 = st.columns(2)
+    with r1:
+        st.metric(label="มีหุ้นรวมทั้งหมด (หุ้น)", value=f"{total_shares:,.4f}")
+    with r2:
+        st.metric(label="ต้นทุนเฉลี่ยต่อหุ้น (Avg)", value=f"{avg_price:,.2f}")
 
 
 # ==========================================
-# TAB 2: คำนวณเปอร์เซ็นต์ (Percentage Calc)
+# ส่วนที่ 2 : คำนวณเปอร์เซ็นต์ (Automation)
 # ==========================================
 with tab2:
-    st.header("เครื่องคิดเลข ราคา & เปอร์เซ็นต์")
+    st.markdown("### คำนวณราคา ↔ เปอร์เซ็นต์")
 
-    # ส่วน A: คำนวณราคาเป้าหมายจาก % (เช่น ถ้าราคาลง 2% จะเหลือเท่าไหร่)
-    st.subheader("🅰️ หา 'ราคา' จากเปอร์เซ็นต์ (Change %)")
-    with st.container(border=True):
-        col_a1, col_a2 = st.columns(2)
-        with col_a1:
-            base_price_a = st.number_input("ราคาเริ่มต้น (Price)", value=20.0, key="base_a")
-        with col_a2:
-            percent_change = st.number_input("เปลี่ยนแปลงกี่ % (ใส่ลบคือลดลง)", value=-2.0, step=0.5, key="pct_a")
-        
-        # คำนวณ
-        change_amount = base_price_a * (percent_change / 100)
-        target_price = base_price_a + change_amount
-        
-        st.markdown(f"ถ้าราคา **{base_price_a}** เปลี่ยนแปลง **{percent_change}%**")
-        st.markdown(f"👉 ราคาจะกลายเป็น: **:green[{target_price:,.2f}]** (เปลี่ยนแปลง {change_amount:,.2f})")
+    # เก็บค่าลงตัวแปรกลาง (Session State) เพื่อให้แก้ช่องไหน อีกช่องก็เปลี่ยนตาม
+    if 'target_price' not in st.session_state: st.session_state.target_price = 0.0
+    if 'pct' not in st.session_state: st.session_state.pct = 0.0
 
-    st.write("") # เว้นวรรค
+    # 1. ราคาตั้งต้น
+    base_price = st.number_input("ราคาปัจจุบัน (Base Price)", value=100.0, step=0.1)
 
-    # ส่วน B: คำนวณ % จากราคาที่เปลี่ยนไป (เช่น ลงไป 5 USD คิดเป็นกี่ %)
-    st.subheader("🅱️ หา 'เปอร์เซ็นต์' จากส่วนต่างราคา (Diff Price)")
-    with st.container(border=True):
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            base_price_b = st.number_input("ราคาเริ่มต้น (Price)", value=20.0, key="base_b")
-        with col_b2:
-            # ให้เลือกกรอกได้ 2 แบบ: ราคาสุดท้าย หรือ จำนวนที่ลดลง
-            calc_method = st.radio("เลือกวิธีคำนวณ:", ["ระบุราคาปลายทาง (Target Price)", "ระบุส่วนต่าง (Amount Change)"])
-            
-        if calc_method == "ระบุราคาปลายทาง (Target Price)":
-            target_price_b = st.number_input("ราคาปลายทางที่คาดหวัง", value=15.0, key="target_b")
-            diff_amount = target_price_b - base_price_b
-        else:
-            diff_amount_input = st.number_input("ราคาลดลง/เพิ่มขึ้น กี่ USD (ใส่ลบคือลด)", value=-5.0, key="diff_b")
-            diff_amount = diff_amount_input
-            target_price_b = base_price_b + diff_amount
+    # ฟังก์ชันคำนวณ (Callback Functions)
+    def on_pct_change():
+        # เมื่อแก้ %, ให้ไปแก้ราคา
+        st.session_state.target_price = base_price + (base_price * st.session_state.pct / 100)
 
-        # คำนวณ %
-        if base_price_b != 0:
-            percent_result = (diff_amount / base_price_b) * 100
-        else:
-            percent_result = 0
+    def on_price_change():
+        # เมื่อแก้ราคา, ให้ไปแก้ %
+        if base_price > 0:
+            st.session_state.pct = ((st.session_state.target_price - base_price) / base_price) * 100
 
-        st.markdown(f"จากราคา **{base_price_b}** ไปที่ **{target_price_b}** (ส่วนต่าง {diff_amount})")
-        st.markdown(f"👉 คิดเป็น: **:blue[{percent_result:,.2f}%]**")
+    st.write("---")
+    
+    col_p1, col_p2 = st.columns(2)
+    
+    with col_p1:
+        # ช่องกรอก %
+        st.number_input(
+            "ระบุ เปอร์เซ็นต์ (+/-)", 
+            key="pct", 
+            step=1.0, 
+            on_change=on_pct_change  # เมื่อพิมพ์เสร็จ ให้เรียกฟังก์ชันคำนวณราคา
+        )
 
+    with col_p2:
+        # ช่องกรอก ราคา
+        st.number_input(
+            "ระบุ ราคาเป้าหมาย (+/-)", 
+            key="target_price", 
+            step=0.5, 
+            on_change=on_price_change # เมื่อพิมพ์เสร็จ ให้เรียกฟังก์ชันคำนวณ %
+        )
+
+    # แสดงผลสรุปด้านล่างอีกทีให้ชัดเจน
+    st.info(f"จากราคา {base_price:,.2f} ถ้าเปลี่ยนแปลง {st.session_state.pct:.2f}% ราคาจะเป็น {st.session_state.target_price:,.2f}")

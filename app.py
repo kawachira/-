@@ -1,150 +1,176 @@
 import streamlit as st
 
-# 1. ตั้งค่าหน้าเพจให้กว้างและ Title เล็กๆ
-st.set_page_config(page_title="Quick Calc", layout="centered")
+# ตั้งค่าหน้าเพจ
+st.set_page_config(page_title="Pro Stock Calc", layout="centered")
 
-# 2. CSS: ซ่อนปุ่ม +/- และลดช่องว่าง (Padding) ให้ทุกอย่างชิดกัน หน้าเดียวจบ
+# CSS:
+# 1. ซ่อนปุ่ม +/- (Stepper)
+# 2. จัดการ Input ให้เป็นช่องว่างๆ สะอาดๆ
 st.markdown("""
 <style>
-    /* ซ่อนปุ่ม +/- ของ Number Input */
-    button[kind="secondary"] { display: none; }
-    div[data-testid="stNumberInputStepUp"] { display: none; }
-    div[data-testid="stNumberInputStepDown"] { display: none; }
+    /* ซ่อนปุ่ม +/- ของ Streamlit */
+    button[kind="secondary"] { display: none !important; }
+    div[data-testid="stNumberInput"] > div > div > div:nth-child(2) { display: none !important; }
     
-    /* ปรับขนาด Font ให้ใหญ่ เห็นชัด */
-    input[type="number"] { font-size: 20px !important; font-weight: bold; color: #333; }
-    
-    /* ลดช่องว่างระหว่างบรรทัดให้ Compact สุดๆ */
-    .block-container { padding-top: 2rem; padding-bottom: 1rem; }
-    div[data-testid="column"] { padding: 0px; }
-    h3 { margin-bottom: 0px; padding-bottom: 5px; font-size: 18px; }
-    p { font-size: 14px; margin-bottom: 2px; }
-    
-    /* แต่งผลลัพธ์ให้เด่น */
-    .result-box {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        margin-top: 10px;
+    /* ปรับ Input ให้ตัวใหญ่ อ่านง่าย */
+    input[type="number"] { 
+        font-size: 22px !important; 
+        font-weight: 500; 
+        color: #333;
+        padding-left: 10px !important;
+        -moz-appearance: textfield; /* Firefox remove arrows */
     }
-    .result-val { font-size: 24px; font-weight: bold; color: #0068c9; }
-    .result-lbl { font-size: 14px; color: #555; }
+    /* Chrome/Safari remove arrows */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* จัด Layout ให้ Compact */
+    .block-container { padding-top: 2rem; }
+    div[data-testid="column"] { padding: 0 5px; }
+    label { font-size: 16px !important; font-weight: bold; }
+    
+    /* กล่องผลลัพธ์ */
+    .result-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        margin-top: 15px;
+    }
+    .result-val { font-size: 28px; font-weight: bold; color: #2E86C1; }
+    .result-lbl { font-size: 14px; color: #666; }
 </style>
 """, unsafe_allow_html=True)
 
-# สร้าง Tabs
 tab1, tab2 = st.tabs(["📉 ถัวเฉลี่ยหุ้น", "🔄 คำนวณ % Auto"])
 
+# ฟังก์ชันแปลง None เป็น 0.0 เพื่อใช้คำนวณ
+def val(v):
+    return v if v is not None else 0.0
+
 # ==========================================
-# TAB 1 : ถัวเฉลี่ย (Layout ตามรูปวาด 1)
+# TAB 1 : ถัวเฉลี่ย (จัดเรียงใหม่ตามสั่ง)
 # ==========================================
 with tab1:
-    # --- Row 1: ของเดิม ---
+    # --- ส่วนที่ 1: ของเดิม (วางคู่กัน) ---
+    st.write("### 1. พอร์ตปัจจุบัน")
     c1, c2 = st.columns(2)
     with c1:
-        st.caption("หุ้นที่มีอยู่ (Share)")
-        old_shares = st.number_input("old_s", min_value=0.0, step=0.0, label_visibility="collapsed", key="t1_os")
+        # value=None ทำให้ช่องเริ่มต้นเป็นค่าว่าง
+        old_shares = st.number_input("จำนวนหุ้นที่ถือ", value=None, placeholder="จำนวนหุ้น", step=1.0)
     with c2:
-        st.caption("ทุนเดิม (Price)")
-        old_price = st.number_input("old_p", min_value=0.0, step=0.0, label_visibility="collapsed", key="t1_op")
+        old_price = st.number_input("ต้นทุนต่อหุ้น", value=None, placeholder="ราคาเดิม", step=0.01)
 
-    st.markdown("---") # เส้นขีดคั่นบางๆ
+    st.write("---")
 
-    # --- Row 2: ซื้อเพิ่ม (3 ช่องตามรูป: หุ้น | เงิน | ราคา) ---
-    st.caption("🛒 **ถ้าซื้อเพิ่ม** (กรอกช่องไหนก็ได้ ระบบคำนวณให้)")
+    # --- ส่วนที่ 2: ซื้อเพิ่ม (3 ช่อง เชื่อมกัน) ---
+    st.write("### 2. ถ้าซื้อเพิ่ม")
     
-    # ใช้ Session State เพื่อ Link 3 ช่องนี้เข้าด้วยกัน
-    if 'buy_shares' not in st.session_state: st.session_state.buy_shares = 0.0
-    if 'buy_amount' not in st.session_state: st.session_state.buy_amount = 0.0
-    if 'buy_price' not in st.session_state: st.session_state.buy_price = 0.0 if old_price == 0 else old_price
+    # Session State สำหรับการเชื่อม 3 ช่อง (เริ่มเป็น None เพื่อให้ว่าง)
+    if 'buy_s' not in st.session_state: st.session_state.buy_s = None
+    if 'buy_a' not in st.session_state: st.session_state.buy_a = None
+    # ดึงราคาเดิมมาเป็นค่าตั้งต้นของราคาซื้อใหม่ (ถ้ามี) หรือปล่อยว่าง
+    if 'buy_p' not in st.session_state: 
+        st.session_state.buy_p = None 
 
-    # Callback functions
-    def update_from_shares():
-        st.session_state.buy_amount = st.session_state.buy_shares * st.session_state.buy_price
-    def update_from_amount():
-        if st.session_state.buy_price > 0:
-            st.session_state.buy_shares = st.session_state.buy_amount / st.session_state.buy_price
-    def update_from_price():
-        st.session_state.buy_amount = st.session_state.buy_shares * st.session_state.buy_price
+    # Logic: ถ้าแก้ช่องหนึ่ง อีกช่องเปลี่ยน
+    def on_share_change():
+        s = val(st.session_state.buy_s)
+        p = val(st.session_state.buy_p)
+        if s > 0 and p > 0: st.session_state.buy_a = s * p
+        elif s == 0: st.session_state.buy_a = None
+
+    def on_amt_change():
+        a = val(st.session_state.buy_a)
+        p = val(st.session_state.buy_p)
+        if p > 0: st.session_state.buy_s = a / p
+    
+    def on_price_change():
+        s = val(st.session_state.buy_s)
+        p = val(st.session_state.buy_p)
+        if s > 0: st.session_state.buy_a = s * p
 
     b1, b2, b3 = st.columns(3)
     with b1:
-        st.caption("จำนวนหุ้น")
-        st.number_input("add_s", key="buy_shares", step=0.0, label_visibility="collapsed", on_change=update_from_shares)
+        st.number_input("จำนวนหุ้น", key="buy_s", value=None, placeholder="หุ้น", step=1.0, on_change=on_share_change)
     with b2:
-        st.caption("จำนวนเงิน (USD)")
-        st.number_input("add_a", key="buy_amount", step=0.0, label_visibility="collapsed", on_change=update_from_amount)
+        st.number_input("จำนวนเงิน (USD)", key="buy_a", value=None, placeholder="เงินรวม", step=10.0, on_change=on_amt_change)
     with b3:
-        st.caption("ราคาที่ซื้อ")
-        st.number_input("add_p", key="buy_price", step=0.0, label_visibility="collapsed", on_change=update_from_price)
+        st.number_input("ราคาที่ซื้อ", key="buy_p", value=None, placeholder="ราคา", step=0.01, on_change=on_price_change)
 
-    # --- Row 3: ผลลัพธ์ (Clean & Big) ---
-    st.markdown("### ✨ ต้นทุนจะกลายเป็น")
+    # --- ส่วนแสดงผล ---
+    # จะคำนวณก็ต่อเมื่อมีการกรอกข้อมูลอย่างน้อยบางส่วน
+    total_shares = val(old_shares) + val(st.session_state.buy_s)
+    total_cost = (val(old_shares) * val(old_price)) + val(st.session_state.buy_a)
     
-    total_shares = old_shares + st.session_state.buy_shares
-    total_cost = (old_shares * old_price) + st.session_state.buy_amount
-    avg_price = total_cost / total_shares if total_shares > 0 else 0
+    avg_price = 0.0
+    if total_shares > 0:
+        avg_price = total_cost / total_shares
 
-    r1, r2 = st.columns(2)
-    with r1:
-        st.markdown(f"<div class='result-box'><div class='result-val'>{total_shares:,.2f}</div><div class='result-lbl'>หุ้นรวม</div></div>", unsafe_allow_html=True)
-    with r2:
-        st.markdown(f"<div class='result-box'><div class='result-val'>{avg_price:,.2f}</div><div class='result-lbl'>ต้นทุนเฉลี่ย</div></div>", unsafe_allow_html=True)
+    # แสดงผลเมื่อมีข้อมูล
+    if total_shares > 0:
+        st.markdown("### ✨ ต้นทุนจะกลายเป็น")
+        r1, r2 = st.columns(2)
+        with r1:
+            st.markdown(f"<div class='result-box'><div class='result-val'>{total_shares:,.2f}</div><div class='result-lbl'>หุ้นรวม</div></div>", unsafe_allow_html=True)
+        with r2:
+            st.markdown(f"<div class='result-box'><div class='result-val'>{avg_price:,.2f}</div><div class='result-lbl'>ต้นทุนเฉลี่ย</div></div>", unsafe_allow_html=True)
 
 
 # ==========================================
-# TAB 2 : คำนวณ % Auto 4 ทิศทาง (ตามรูปวาด 2)
+# TAB 2 : คำนวณ % Auto (เริ่มแบบว่างเปล่า)
 # ==========================================
 with tab2:
-    # Initialize State
-    if 'base' not in st.session_state: st.session_state.base = 100.0
-    if 'pct' not in st.session_state: st.session_state.pct = 0.0
-    if 'diff' not in st.session_state: st.session_state.diff = 0.0
-    if 'final' not in st.session_state: st.session_state.final = 100.0
+    st.write("### คำนวณราคา ↔ เปอร์เซ็นต์")
 
-    # Logic การเชื่อมโยง 4 ช่อง
-    def calc_from_base():
-        # เปลี่ยนฐาน -> คำนวณส่วนต่างและปลายทางใหม่ (ยึด % เดิม)
-        st.session_state.diff = st.session_state.base * (st.session_state.pct / 100)
-        st.session_state.final = st.session_state.base + st.session_state.diff
+    # Init State เป็น None
+    if 'base' not in st.session_state: st.session_state.base = None
+    if 'pct' not in st.session_state: st.session_state.pct = None
+    if 'diff' not in st.session_state: st.session_state.diff = None
+    if 'final' not in st.session_state: st.session_state.final = None
 
-    def calc_from_pct():
-        # เปลี่ยน % -> คำนวณส่วนต่างและปลายทาง
-        st.session_state.diff = st.session_state.base * (st.session_state.pct / 100)
-        st.session_state.final = st.session_state.base + st.session_state.diff
-
-    def calc_from_diff():
-        # เปลี่ยน USD -> คำนวณ % และปลายทาง
-        if st.session_state.base != 0:
-            st.session_state.pct = (st.session_state.diff / st.session_state.base) * 100
-        st.session_state.final = st.session_state.base + st.session_state.diff
-
-    def calc_from_final():
-        # เปลี่ยนปลายทาง -> คำนวณส่วนต่างและ %
-        st.session_state.diff = st.session_state.final - st.session_state.base
-        if st.session_state.base != 0:
-            st.session_state.pct = (st.session_state.diff / st.session_state.base) * 100
-
-    # --- UI Layout ---
-    # Row 1: ราคาปัจจุบัน (Base)
-    st.caption("ราคาปัจจุบัน (Base Price)")
-    st.number_input("base_inp", key="base", step=0.0, label_visibility="collapsed", on_change=calc_from_base)
-
-    st.write("") # space นิดนึง
-
-    # Row 2: 3 ช่องเรียงกัน ( % | USD | สรุป )
-    col_pct, col_diff, col_final = st.columns(3)
-
-    with col_pct:
-        st.caption("เปอร์เซ็นต์ %")
-        st.number_input("pct_inp", key="pct", step=0.0, label_visibility="collapsed", on_change=calc_from_pct)
-    
-    with col_diff:
-        st.caption("ส่วนต่าง USD")
-        st.number_input("diff_inp", key="diff", step=0.0, label_visibility="collapsed", on_change=calc_from_diff)
+    # Logic การคำนวณ (เช็ค None ก่อนคำนวณเสมอ)
+    def calc_all(source):
+        base = val(st.session_state.base)
         
+        if source == 'base':
+            # เปลี่ยนฐาน -> คำนวณใหม่โดยยึด % เดิม (ถ้ามี)
+            pct = val(st.session_state.pct)
+            st.session_state.diff = base * (pct / 100)
+            st.session_state.final = base + st.session_state.diff
+            
+        elif source == 'pct':
+            # เปลี่ยน % -> คำนวณเงิน
+            pct = val(st.session_state.pct)
+            st.session_state.diff = base * (pct / 100)
+            st.session_state.final = base + st.session_state.diff
+            
+        elif source == 'diff':
+            # เปลี่ยนเงิน -> คำนวณ %
+            diff = val(st.session_state.diff)
+            if base != 0: st.session_state.pct = (diff / base) * 100
+            st.session_state.final = base + diff
+            
+        elif source == 'final':
+            # เปลี่ยนราคาจบ -> คำนวณเงินและ %
+            final = val(st.session_state.final)
+            st.session_state.diff = final - base
+            if base != 0: st.session_state.pct = (st.session_state.diff / base) * 100
+
+    # UI
+    st.number_input("ราคาปัจจุบัน (Base Price)", key="base", value=None, placeholder="ใส่ราคาตั้งต้น...", step=0.1, on_change=calc_all, args=('base',))
+    
+    st.write("") 
+    
+    col_pct, col_diff, col_final = st.columns(3)
+    with col_pct:
+        st.number_input("เปอร์เซ็นต์ %", key="pct", value=None, placeholder="%", step=1.0, on_change=calc_all, args=('pct',))
+    with col_diff:
+        st.number_input("ส่วนต่าง USD", key="diff", value=None, placeholder="USD", step=0.1, on_change=calc_all, args=('diff',))
     with col_final:
-        st.caption("สรุป/ราคาจบ")
-        st.number_input("final_inp", key="final", step=0.0, label_visibility="collapsed", on_change=calc_from_final)
+        st.number_input("ราคาจบ", key="final", value=None, placeholder="Price", step=0.1, on_change=calc_all, args=('final',))
 
